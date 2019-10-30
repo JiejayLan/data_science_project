@@ -31,33 +31,45 @@ raw_df.info()
 
 raw_df['rent'].hist(bins=100)
 
-"""### Seperate all features into continuses, caterigal and binary features."""
+"""### Seperate all features into continuous, categorical and binary features.
 
-continues_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber' ]
+For those none relatived features, we have excluded them from the features grouping: 
+- addr_unit: no relationship
+- building_id: no relationship
+- addr_lat: hard to analyze latitude
+- addr_lon: hard to analyze longtitude
+- bin: no relationship
+- bbl: no relationshio
+- description: hard to build a NLP model
+- unit: no relationship
+"""
+
+continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber' ]
 caterigal_features =['addr_street','addr_city','addr_zip','neighborhood','borough','line' ]
 binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwasher','is_furnished', 'has_gym', 'allows_pets', 
                    'has_washer_dryer','has_garage', 'has_roofdeck', 'has_concierge', 'has_pool', 'has_garden',
                    'has_childrens_playroom', 'no_fee', ]
-# use to check how many unique number for each features
+
 unique_count = [] 
 for feature in raw_df.columns:
   unique_count.append(raw_df[feature].nunique())
 count_df = pd.DataFrame({'Feature':raw_df.columns,'unique count': unique_count})
 count_df
 
-"""# use pair coorelation for continues features"""
+"""### use pair coorelation for continuous features"""
 
-continuous_df = raw_df[continues_features+['rent']]
+continuous_df = raw_df[continuous_features+['rent']]
 continuous_df.corr()['rent'][:-1]
 
 """### Create a scatterplot of continuous features."""
 
-sns.pairplot(data = raw_df,  y_vars=['rent'],x_vars=['bathrooms','bedrooms','size_sqft','floor_count','floornumber','neighborhood','borough','line'])
+sns.pairplot(data = raw_df,  y_vars=['rent'],x_vars=continuous_features)
 
 """### Check coorelation for binary features"""
 
 raw_df[binary_features+['rent']].corr()['rent'][:-1]
 coor_results= []
+
 for feature in binary_features:
   df = raw_df.groupby([feature]).aggregate(['mean'])['rent']
   df[feature]= df.index
@@ -65,9 +77,11 @@ for feature in binary_features:
 coor_df = pd.DataFrame({'Coorelation': coor_results,'Feature':binary_features})
 coor_df
 
+"""As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
 
-
-"""### Check coorelation for caterigal features"""
+### Check coorelation for categorical features
+Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
+"""
 
 
 
