@@ -82,8 +82,56 @@ coor_df
 ### Check coorelation for categorical features
 Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
 """
+"""
+### Clean up the outside dataset dataframe
+Need to drop unnecessary columns and only display the useful information to find the average income amount for each zip code
+"""
+raw_outside_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
+raw_outside_data.columns
 
+raw_outside_data.describe()
 
+# Only keep the useful data for calculations
+# agi_stub stands for Size of adjusted gross income
+# M1 stands for the Number of returns
+# A02650 stands for Total income amount
+# We need to find the average income
+raw_outside_data = raw_outside_data.loc[raw_outside_data['STATE']=='NY']
+raw_outside_data = raw_outside_data[['STATE','zipcode','agi_stub','N1', 'A02650']]
+raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']<99999]
+raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']>0]
 
+raw_outside_data.head(10)
 
+import csv
+def calculate_avg_income():
+    with open('data/17ny.csv', mode='w') as avg_file:
+        thewriter = csv.writer(avg_file)
+        thewriter.writerow(['addr_zip','addr_zip_average_income'])
+        for zipcode in range(10001, 14906):
+            current_sum=np.where(raw_outside_data['zipcode']==zipcode, raw_outside_data['A02650'],0).sum()
+            current_returns=np.where(raw_outside_data['zipcode']==zipcode, raw_outside_data['N1'],0).sum()  
+            avg_income=(current_sum*1000)/current_returns
+            if(avg_income>0):
+                thewriter.writerow([zipcode,avg_income])
+    
+import warnings
+warnings.filterwarnings('ignore')
+calculate_avg_income()
+
+# read the avg income based on zip code file 
+outside_data=pd.read_csv("data/17ny.csv")
+outside_data.head(5)
+
+# Merge the raw dataset and the outside dataset by addr_zip
+raw_df=raw_df.reset_index().merge(outside_data, how="left",on='addr_zip').set_index('rental_id')
+raw_df.head(5)
+
+### Merged Data Summarize
+
+raw_df.describe() 
+
+raw_df.shape
+
+raw_df.info()
 
