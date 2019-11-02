@@ -83,6 +83,33 @@ coor_df
 Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
 """
 
+"""# Data Cleaning
+
+### Handling missing data
+In order to handle missing data in this dataset, we frist find and count all the null values.
+"""
+
+raw_df.isna().sum()
+
+"""As we can see from the result,there are missing data appearing on addr_unit, bin, year_built, min_to_subway, description, neighborhood, unit, floornumber, and line. 
+
+Since we already found out that addr_unit and bin has no relationship to the value of rent, and it is hard to build a NLP model around description in the other hand, so we don't really need to worry about these data that has not much impact to our final result.
+
+For all other related cases, since we have a dataset with 12000 rows in total and it is hard to find the replaceable values for them, thus we can afford to drop them in order to keep the modeling process clean.
+"""
+
+# we will be dropping the rows which we don't have values for year_built, min_to_subway, neighborhood, and floornumber.
+# and we will call the new df md_df
+
+md_df = raw_df.loc[
+    raw_df.year_built.notnull() &
+    raw_df.min_to_subway.notnull() & 
+    raw_df.neighborhood.notnull() & 
+    raw_df.floornumber.notnull()
+]
+
+print("original shape of dataset:",raw_df.shape)
+print("shape of dataset after handling missing data:",md_df.shape)
 
 
 
