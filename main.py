@@ -13,6 +13,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
+import csv
+import warnings
 from sklearn.linear_model import LinearRegression
 
 # %matplotlib inline
@@ -90,12 +92,13 @@ raw_outside_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', i
 raw_outside_data.columns
 
 raw_outside_data.describe()
+"""
+### Only keep the useful data for calculations
+- agi_stub stands for Size of adjusted gross income
+- M1 stands for the Total number of returns
+- A02650 stands for Total income amount
+- We need to find the average income"""
 
-# Only keep the useful data for calculations
-# agi_stub stands for Size of adjusted gross income
-# M1 stands for the Number of returns
-# A02650 stands for Total income amount
-# We need to find the average income
 raw_outside_data = raw_outside_data.loc[raw_outside_data['STATE']=='NY']
 raw_outside_data = raw_outside_data[['STATE','zipcode','agi_stub','N1', 'A02650']]
 raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']<99999]
@@ -103,7 +106,13 @@ raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']>0]
 
 raw_outside_data.head(10)
 
-import csv
+"""
+### Function to calculate the average income by zip code
+Each zip code has 6 different sizes of adjusted gross income which means we have 6 different number of returns and total income for one zip code.
+By using the np.where and sum function, we can obtain the sum of income and sum of returns for each zip code. 
+The income of original dataset was in thousands of dollar so we need to multiply the sum of income by 1000. 
+Since some zip code was not in the original set, we ingore those average that is NaN and write them to csv file for future use.
+"""
 def calculate_avg_income():
     with open('data/17ny.csv', mode='w') as avg_file:
         thewriter = csv.writer(avg_file)
@@ -114,8 +123,7 @@ def calculate_avg_income():
             avg_income=(current_sum*1000)/current_returns
             if(avg_income>0):
                 thewriter.writerow([zipcode,avg_income])
-    
-import warnings
+
 warnings.filterwarnings('ignore')
 calculate_avg_income()
 
@@ -129,9 +137,8 @@ raw_df.head(5)
 
 ### Merged Data Summarize
 
-raw_df.describe() 
+raw_df.describe()
 
 raw_df.shape
 
 raw_df.info()
-
