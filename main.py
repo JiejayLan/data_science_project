@@ -17,9 +17,9 @@ from sklearn.linear_model import LinearRegression
 
 # %matplotlib inline
 
-raw_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_train.csv', index_col=0)
-raw_df.head(20)
-raw_df.columns
+raw_df = pd.read_csv('data/SE_rents2018_train.csv', index_col=0)
+
+raw_test_df = pd.read_csv('data/SE_rents2018_test1.csv', index_col=0)
 
 """# Data Summarize"""
 
@@ -36,16 +36,19 @@ raw_df['rent'].hist(bins=100)
 For those none relatived features, we have excluded them from the features grouping: 
 - addr_unit: no relationship
 - building_id: no relationship
-- addr_lat: hard to analyze latitude
-- addr_lon: hard to analyze longtitude
+- addr_city: hard to encode
+- addr_zip: hard to encode
+- addr_street: hard to process
+- neighborhood: hard to encode
+- line: hard to encode
 - bin: no relationship
 - bbl: no relationshio
 - description: hard to build a NLP model
 - unit: no relationship
 """
 
-continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber' ]
-caterigal_features =['addr_street','addr_city','addr_zip','neighborhood','borough','line' ]
+continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber', 'addr_lat', 'addr_lon']
+categorical_features =['borough']
 binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwasher','is_furnished', 'has_gym', 'allows_pets', 
                    'has_washer_dryer','has_garage', 'has_roofdeck', 'has_concierge', 'has_pool', 'has_garden',
                    'has_childrens_playroom', 'no_fee', ]
@@ -60,10 +63,6 @@ count_df
 
 continuous_df = raw_df[continuous_features+['rent']]
 continuous_df.corr()['rent'][:-1]
-
-"""### Create a scatterplot of continuous features."""
-
-sns.pairplot(data = raw_df,  y_vars=['rent'],x_vars=continuous_features)
 
 """### Check coorelation for binary features"""
 
@@ -120,14 +119,14 @@ md_df = raw_df.loc[
 print("original shape of dataset:",raw_df.shape)
 print("shape of dataset after handling missing data:",md_df.shape)
 
+"""## remove outliers"""
+
 for feature in continuous_features:
     md_df.plot.scatter(feature, 'rent')
 
 md_df.loc[md_df['size_sqft']==0].shape
 
-"""### drop size_sqrt = 0 for now
-# ### since there are 713 rows, might replace with mode when creating models
-"""
+"""## drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models"""
 
 def remove_outliers(md_df, feature, low_value, high_value):
     print(feature, ': ', md_df.shape)
@@ -147,16 +146,17 @@ md_df = remove_outliers(md_df, 'floornumber', 0, 60)
 
 md_df['year_built'] = 2019 - md_df['year_built'].astype(int)
 
-def encode_categorical(feature):
-    enc = preprocessing.LabelEncoder()
-    enc.fit(feature)
-    enc_feature = enc.transform(feature)
-    ohe = preprocessing.OneHotEncoder()
-    encoded = ohe.fit(enc_feature.reshape(-1,1))
-    return encoded.transform(enc_feature.reshape(-1,1)).toarray()
-train_set = encode_categorical(md_df['borough'])
-train_set = np.concatenate([train_set,np.array(md_df[continuous_features + binary_features])],axis=1)
+"""## encode categorical feature and drop useless features"""
 
-train_set.shape
+boroughs = np.array(md_df['borough'].value_counts().index)
+
+for borough in boroughs:
+    md_df[borough] = md_df['borough'].apply(lambda x : int(x == borough))
+
+features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description', \
+                    'neighborhood', 'unit', 'borough', 'line']
+
+md_df = md_df.drop(features_notNeed, axis=1)
+md_df.head(10).T
 
 
