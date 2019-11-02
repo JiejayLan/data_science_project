@@ -108,9 +108,55 @@ md_df = raw_df.loc[
     raw_df.floornumber.notnull()
 ]
 
+# use mode to replace NAN value, compare both method when creating models
+# md_df = raw_df.loc[
+#     raw_df.year_built.notnull() &
+#     raw_df.min_to_subway.notnull() & 
+#     raw_df.neighborhood.notnull() & 
+# ]
+
+# md_df['floornumber'].fillna(md_df['floornumber'].mode()[0], inplace=True)
+
 print("original shape of dataset:",raw_df.shape)
 print("shape of dataset after handling missing data:",md_df.shape)
 
+for feature in continuous_features:
+    md_df.plot.scatter(feature, 'rent')
 
+md_df.loc[md_df['size_sqft']==0].shape
+
+"""### drop size_sqrt = 0 for now
+# ### since there are 713 rows, might replace with mode when creating models
+"""
+
+def remove_outliers(md_df, feature, low_value, high_value):
+    print(feature, ': ', md_df.shape)
+    md_df = md_df[md_df[feature]>low_value]
+    md_df = md_df[md_df[feature]<=high_value]
+    md_df.reset_index(drop=True,inplace=True)
+    print(feature, ': ', md_df.shape)
+    return md_df
+
+md_df = remove_outliers(md_df, 'rent', 0, 30000)
+md_df = remove_outliers(md_df, 'bathrooms', 0, 12)
+md_df = remove_outliers(md_df, 'size_sqft', 0, 10000)
+md_df = remove_outliers(md_df, 'floor_count', 0, 80)
+md_df = remove_outliers(md_df, 'year_built', 1700, 2019)
+md_df = remove_outliers(md_df, 'min_to_subway', 0, 60)
+md_df = remove_outliers(md_df, 'floornumber', 0, 60)
+
+md_df['year_built'] = 2019 - md_df['year_built'].astype(int)
+
+def encode_categorical(feature):
+    enc = preprocessing.LabelEncoder()
+    enc.fit(feature)
+    enc_feature = enc.transform(feature)
+    ohe = preprocessing.OneHotEncoder()
+    encoded = ohe.fit(enc_feature.reshape(-1,1))
+    return encoded.transform(enc_feature.reshape(-1,1)).toarray()
+train_set = encode_categorical(md_df['borough'])
+train_set = np.concatenate([train_set,np.array(md_df[continuous_features + binary_features])],axis=1)
+
+train_set.shape
 
 
