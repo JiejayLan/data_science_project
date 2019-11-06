@@ -80,59 +80,65 @@ coor_df = pd.DataFrame({'Coorelation': coor_results,'Feature':binary_features})
 coor_df
 
 """As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
+"""
+### Initialize the external dataset 
 
-### Check coorelation for categorical features
-Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
-"""
-"""
-### Clean up the outside dataset dataframe
-Need to drop unnecessary columns and only display the useful information to find the average income amount for each zip code
-"""
-raw_outside_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
-raw_outside_data.columns
+raw_income_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
+raw_income_data.columns
 
 raw_outside_data.describe()
-"""
-### Only keep the useful data for calculations
-- agi_stub stands for Size of adjusted gross income
-- M1 stands for the Total number of returns
-- A02650 stands for Total income amount
-- We need to find the average income"""
 
-raw_outside_data = raw_outside_data.loc[raw_outside_data['STATE']=='NY']
-raw_outside_data = raw_outside_data[['STATE','zipcode','agi_stub','N1', 'A02650']]
-raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']<99999]
-raw_outside_data = raw_outside_data.loc[raw_outside_data['zipcode']>0]
+raw_income_data.head(10)
+"""### About the dataset 
+This dataset comes from the IRS website's 2017 ZIP Code Data (SOI) about Individual Income Tax Statistics.
+According to the documentation's overview,the Statistics of Income (SOI) Division’s ZIP code data is tabulated using individual income tax returns (Forms 1040) filed with the Internal Revenue Service (IRS) during the 12-month period, January 1, 2018 to December 31, 2018.
+The original dataset contains many income and Tax Items, we only keep the ones that are relevant: 
+- STATEFIPS:The State Federal Information Processing System (FIPS) code
+- STATE: The State associated with the ZIP code
+- ZIPCODE: 5-digit Zip code
+- agi_stub: Size of adjusted gross income
+- N1: Total number of returns
+- A02650: Number of returns with total income
 
-raw_outside_data.head(10)
+Our goal is to find the average income of each zipcode."""
+
+### Narrow down the dataframe and rename columns
+
+raw_income_data = raw_income_data.loc[raw_income_data['STATE']=='NY']
+raw_income_data.rename(columns = {'N1':'total_returns', 'A02650':'total_income'}, inplace = True) 
+raw_income_data = raw_income_data[['STATE','zipcode','agi_stub','total_returns', 'total_income']]
+raw_income_data = raw_income_data.loc[raw_income_data['zipcode']<99999]
+raw_income_data = raw_income_data.loc[raw_income_data['zipcode']>0]
+
+raw_income_data.head(12)
 
 """
 ### Function to calculate the average income by zip code
-Each zip code has 6 different sizes of adjusted gross income which means we have 6 different number of returns and total income for one zip code.
-By using the np.where and sum function, we can obtain the sum of income and sum of returns for each zip code. 
-The income of original dataset was in thousands of dollar so we need to multiply the sum of income by 1000. 
-Since some zip code was not in the original set, we ingore those average that is NaN and write them to csv file for future use.
+Each zip code has 6 different sizes of adjusted gross income which means we have 6 different number of total returns and total income for one zip code.
+By using the np.where and sum function, we can obtain the sum of income and sum of returns for each zip code. The income of the original dataset was in thousands of dollar so we need to multiply the sum of income by 1000 and then find the average. Since some zip code was not in the original set, we ingore those average that is NaN and only write the meaningful averages to csv file for future use.
 """
 def calculate_avg_income():
     with open('data/17ny.csv', mode='w') as avg_file:
         thewriter = csv.writer(avg_file)
         thewriter.writerow(['addr_zip','addr_zip_average_income'])
         for zipcode in range(10001, 14906):
-            current_sum=np.where(raw_outside_data['zipcode']==zipcode, raw_outside_data['A02650'],0).sum()
-            current_returns=np.where(raw_outside_data['zipcode']==zipcode, raw_outside_data['N1'],0).sum()  
+            current_sum=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_income'],0).sum()
+            current_returns=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_returns'],0).sum()  
             avg_income=(current_sum*1000)/current_returns
             if(avg_income>0):
                 thewriter.writerow([zipcode,avg_income])
 
+### Calculate the average
+
 warnings.filterwarnings('ignore')
 calculate_avg_income()
 
-# read the avg income based on zip code file 
-outside_data=pd.read_csv("data/17ny.csv")
-outside_data.head(5)
+### Read the averages file 
+average_income=pd.read_csv("data/17ny.csv")
+average_income.head(5)
 
-# Merge the raw dataset and the outside dataset by addr_zip
-raw_df=raw_df.reset_index().merge(outside_data, how="left",on='addr_zip').set_index('rental_id')
+### Merge the raw dataset and the income dataset by addr_zip
+raw_df=raw_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
 raw_df.head(5)
 
 ### Merged Data Summarize
