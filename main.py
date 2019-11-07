@@ -9,14 +9,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
-import csv
-import warnings
 from sklearn.linear_model import LinearRegression
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+get_ipython().magic(u'matplotlib inline')
 
 
-# In[20]:
+# In[2]:
 
 raw_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_train.csv', index_col=0)
 raw_test_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_test1.csv', index_col=0)
@@ -24,7 +22,7 @@ raw_df.head(20)
 raw_df.columns
 
 
-# ## Data Explore
+# # Data Summarize
 
 # In[3]:
 
@@ -52,18 +50,21 @@ raw_df['rent'].hist(bins=100)
 
 # ### Seperate all features into continuous, categorical and binary features.
 # 
-# For those none relatived features as below, we have excluded them from the features grouping: 
+# For those none relatived features, we have excluded them from the features grouping: 
 # - addr_unit: no relationship
 # - building_id: no relationship
-# - addr_lat: hard to analyze latitude
-# - addr_lon: hard to analyze longtitude
+# - addr_city: hard to encode
+# - addr_zip: hard to encode
+# - addr_street: hard to process
+# - neighborhood: hard to encode
+# - line: hard to encode
 # - bin: no relationship
 # - bbl: no relationshio
 # - description: hard to build a NLP model
 # - unit: no relationship
 # 
 
-# In[18]:
+# In[7]:
 
 
 continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber' ]
@@ -73,21 +74,20 @@ binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwash
                    'has_childrens_playroom', 'no_fee', ]
 
 
-# ### Use pair coorelation for continuous features
+
+
+# In[8]:
+
+
+
+
+# ### use pair coorelation for continuous features
 
 # In[9]:
 
 
 continuous_df = raw_df[continuous_features+['rent']]
 continuous_df.corr()['rent'][:-1]
-
-
-# ### Create a scatterplot of continuous features.  
-
-# In[10]:
-
-
-sns.pairplot(data = raw_df,  y_vars=['rent'],x_vars=continuous_features)
 
 
 # ### Check coorelation for binary features
@@ -110,21 +110,18 @@ coor_df
 
 # As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
 
-# ## Import external dataset from Internal Revenue Service
-#  - We will import the 2017 individual income Tax statistic dataset from IRS website(https://www.irs.gov/pub/irs-soi/17zpallagi.csv).
-#  - We will expend a new feature: **average_income** based on zipcode to our raw dataset 
+# ### Check coorelation for categorical features
+# Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
 
-# In[11]:
-
-
-raw_income_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
-raw_income_data.columns
+# In[ ]:
 
 
-# In[12]:
 
 
-raw_income_data.describe()
+
+# In[ ]:
+
+
 
 
 # ### Income Dataset Description 
