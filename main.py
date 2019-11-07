@@ -137,6 +137,7 @@ coor_df
 
 # # Data Cleaning
 
+# ## Cleaning Training dataset
 # ### Handling missing data
 # In order to handle missing data in this dataset, we frist find and count all the null values.
 
@@ -243,14 +244,28 @@ md_df = md_df.drop(features_notNeed, axis=1)
 md_df.head(10).T
 
 
-# In[ ]:
+# ## Cleaning dataset test1
+# ### Handle missing data
+# We frist find and count all the null values for test1 dataset
+
+# In[4]:
 
 
+raw_test_df.isna().sum()
 
 
+# we will be dropping the rows which we don't have values for year_built, min_to_subway, and floornumber, and then rename the dataframe as test_df
 
-# In[ ]:
+# In[5]:
 
 
+test_df = raw_test_df.loc[
+    raw_test_df.year_built.notnull() &
+    raw_test_df.min_to_subway.notnull() & 
+    raw_test_df.neighborhood.notnull() & 
+    raw_test_df.floornumber.notnull()
+]
 
+print("original shape of dataset:",raw_test_df.shape)
+print("shape of dataset after handling missing data:",test_df.shape)
 
