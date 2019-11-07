@@ -11,7 +11,7 @@ import seaborn as sns
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+get_ipython().magic(u'matplotlib inline')
 
 
 # In[2]:
@@ -64,7 +64,7 @@ raw_df['rent'].hist(bins=100)
 # - unit: no relationship
 # 
 
-# In[92]:
+# In[7]:
 
 
 continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber', 'addr_lat', 'addr_lon']
@@ -72,6 +72,7 @@ categorical_features =['borough']
 binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwasher','is_furnished', 'has_gym', 'allows_pets', 
                    'has_washer_dryer','has_garage', 'has_roofdeck', 'has_concierge', 'has_pool', 'has_garden',
                    'has_childrens_playroom', 'no_fee', ]
+
 
 
 
@@ -162,7 +163,7 @@ raw_df.isna().sum()
 # 
 # Then, we will be dropping the rows which we don't have values for year_built, min_to_subway, neighborhood, and floornumber.
 
-# In[16]:
+# In[11]:
 
 
 # We will call the new df md_df
@@ -206,7 +207,7 @@ md_df.loc[md_df['size_sqft']==0].shape
 
 # ## drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models
 
-# In[17]:
+# In[12]:
 
 
 def remove_outliers(md_df, feature, low_value, high_value):
@@ -217,10 +218,8 @@ def remove_outliers(md_df, feature, low_value, high_value):
     print(feature, ': ', md_df.shape)
     return md_df
 
-md_df = remove_outliers(md_df, 'rent', 0, 30000)
 md_df = remove_outliers(md_df, 'bathrooms', 0, 12)
 md_df = remove_outliers(md_df, 'size_sqft', 0, 10000)
-md_df = remove_outliers(md_df, 'floor_count', 0, 80)
 md_df = remove_outliers(md_df, 'year_built', 1700, 2019)
 md_df = remove_outliers(md_df, 'min_to_subway', 0, 60)
 md_df = remove_outliers(md_df, 'floornumber', 0, 60)
@@ -233,7 +232,7 @@ md_df['year_built'] = 2019 - md_df['year_built'].astype(int)
 # In[18]:
 
 
-boroughs = np.array(md_df['borough'].value_counts().index)
+boroughs = np.array(md_df['borough'].unique())
 
 for borough in boroughs:
     md_df[borough] = md_df['borough'].apply(lambda x : int(x == borough))
@@ -268,4 +267,48 @@ test_df = raw_test_df.loc[
 
 print("original shape of dataset:",raw_test_df.shape)
 print("shape of dataset after handling missing data:",test_df.shape)
+
+
+# ## remove outliers of test df
+
+# In[8]:
+
+
+for feature in continuous_features:
+    test_df.plot.scatter(feature, 'rent')
+
+
+# In[14]:
+
+
+test_df = remove_outliers(test_df, 'bathrooms', 0, 12)
+test_df = remove_outliers(test_df, 'bedrooms', 0, 12)
+test_df = remove_outliers(test_df, 'size_sqft', 0, 10000)
+test_df = remove_outliers(test_df, 'year_built', 1700, 2019)
+test_df = remove_outliers(test_df, 'min_to_subway', 0, 60)
+test_df = remove_outliers(test_df, 'floornumber', 0, 60)
+
+test_df['year_built'] = 2019 - test_df['year_built'].astype(int)
+
+
+# ## encode categorical feature and drop useless features from test df
+
+# In[15]:
+
+
+boroughs = np.array(test_df['borough'].unique())
+
+for borough in boroughs:
+    test_df[borough] = test_df['borough'].apply(lambda x : int(x == borough))
+
+features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description',                     'neighborhood', 'unit', 'borough', 'line']
+
+test_df = test_df.drop(features_notNeed, axis=1)
+test_df.head(10).T
+
+
+# In[ ]:
+
+
+
 
