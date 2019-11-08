@@ -9,12 +9,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
+import csv
+import warnings
 from sklearn.linear_model import LinearRegression
 
-get_ipython().magic(u'matplotlib inline')
+get_ipython().run_line_magic('matplotlib', 'inline')
 
 
 # In[2]:
+
 
 raw_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_train.csv', index_col=0)
 raw_test_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_test1.csv', index_col=0)
@@ -22,7 +25,7 @@ raw_df.head(20)
 raw_df.columns
 
 
-# # Data Summarize
+# ## Data Explore
 
 # In[3]:
 
@@ -50,14 +53,11 @@ raw_df['rent'].hist(bins=100)
 
 # ### Seperate all features into continuous, categorical and binary features.
 # 
-# For those none relatived features, we have excluded them from the features grouping: 
+# For those none relatived features as below, we have excluded them from the features grouping: 
 # - addr_unit: no relationship
 # - building_id: no relationship
-# - addr_city: hard to encode
-# - addr_zip: hard to encode
-# - addr_street: hard to process
-# - neighborhood: hard to encode
-# - line: hard to encode
+# - addr_lat: hard to analyze latitude
+# - addr_lon: hard to analyze longtitude
 # - bin: no relationship
 # - bbl: no relationshio
 # - description: hard to build a NLP model
@@ -74,54 +74,21 @@ binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwash
                    'has_childrens_playroom', 'no_fee', ]
 
 
-
+# ## Import external dataset from Internal Revenue Service
+#  - We will import the 2017 individual income Tax statistic dataset from IRS website(https://www.irs.gov/pub/irs-soi/17zpallagi.csv).
+#  - We will expend a new feature: **average_income** based on zipcode to our raw dataset 
 
 # In[8]:
 
 
+raw_income_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
+raw_income_data.columns
 
-
-# ### use pair coorelation for continuous features
 
 # In[9]:
 
 
-continuous_df = raw_df[continuous_features+['rent']]
-continuous_df.corr()['rent'][:-1]
-
-
-# ### Check coorelation for binary features
-# 
-# 
-
-# In[11]:
-
-
-raw_df[binary_features+['rent']].corr()['rent'][:-1]
-coor_results= []
-
-for feature in binary_features:
-  df = raw_df.groupby([feature]).aggregate(['mean'])['rent']
-  df[feature]= df.index
-  coor_results.append(df.corr().iloc[0][1])
-coor_df = pd.DataFrame({'Coorelation': coor_results,'Feature':binary_features})
-coor_df
-
-
-# As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
-
-# ### Check coorelation for categorical features
-# Need to do the binary first, then check the coorelation for categorical features, should be doen by group two
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
+raw_income_data.describe()
 
 
 # ### Income Dataset Description 
@@ -139,7 +106,7 @@ coor_df
 
 # ### Clean the raw income data and rename feature
 
-# In[37]:
+# In[10]:
 
 
 raw_income_data = raw_income_data.loc[raw_income_data['STATE']=='NY']
@@ -147,7 +114,6 @@ raw_income_data.rename(columns = {'N1':'total_returns', 'A02650':'total_income'}
 raw_income_data = raw_income_data[['STATE','zipcode','agi_stub','total_returns', 'total_income']]
 raw_income_data = raw_income_data.loc[raw_income_data['zipcode']<99999]
 raw_income_data = raw_income_data.loc[raw_income_data['zipcode']>0]
-raw_income_data.isna().sum()
 
 
 # ### Function to calculate the average income by zip code
@@ -158,62 +124,64 @@ raw_income_data.isna().sum()
 # - Export to ny_income_2017.csv for storage
 # - For next time, no need to import the raw_income_dataset again
 
-# In[27]:
+# In[11]:
 
+
+average_income = pd.DataFrame({'addr_zip':[],'zip_average_income':[]})
 
 def calculate_avg_income():
-    with open('data/ny_income_2017.csv', mode='w') as avg_file:
-        thewriter = csv.writer(avg_file)
-        thewriter.writerow(['addr_zip','zip_average_income'])
-        for zipcode in range(10001, 14906):
-            current_sum=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_income'],0).sum()
-            current_returns=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_returns'],0).sum()  
-            avg_income=(current_sum*1000)/current_returns
-            if(avg_income>0):
-                thewriter.writerow([zipcode,avg_income])
-    
-
-
-# In[28]:
-
-
-warnings.filterwarnings('ignore')
+    global average_income
+    for zipcode in range(10001, 14906):
+        current_sum=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_income'],0).sum()
+        current_returns=np.where(raw_income_data['zipcode']==zipcode, raw_income_data['total_returns'],0).sum() 
+        if(current_returns <=0 or current_sum<=0):
+            continue
+        avg_income=(current_sum*1000)/current_returns
+        new_row={'addr_zip':zipcode,'zip_average_income':avg_income}
+        average_income=average_income.append(new_row,ignore_index=True)           
 calculate_avg_income()
-
-
-# <b>Read the ny_income_2017 file</b>
-
-# In[29]:
-
-
-average_income=pd.read_csv("data/ny_income_2017.csv")
 average_income.head(5)
 
 
-# ### Merge the raw dataset and the income dataset by addr_zip
+#  - We realize that the income dataset is missing all income data between zipcode 11239 - 11354, we will take an averge of zipcode income for 11239 and 11354 to replace any zipcode income in between 
+#  - In our training and testing dataset, only the zipcode income 11249 is missing
 
-# In[30]:
-
-
-raw_df=raw_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
-raw_df.head(5).T
+# In[12]:
 
 
-# In[31]:
+print(list(set(raw_df['addr_zip']) - set(average_income['addr_zip'])))
+print(list(set(raw_test_df['addr_zip']) - set(average_income['addr_zip'])))
+
+
+# **Insert a new row for zipcode income 11249 into the average_income dataframe**
+
+# In[13]:
+
+
+avg_income = (average_income.loc[(average_income['addr_zip']==11239)].iloc[0]['zip_average_income'] +
+             average_income.loc[(average_income['addr_zip']==11354)].iloc[0]['zip_average_income'])/2
+new_row = {'addr_zip':11249,'zip_average_income':avg_income}
+average_income=average_income.append(new_row,ignore_index=True)  
+
+
+# ### Merge the raw train and test1 dataset with the income dataset by addr_zip
+
+# In[14]:
 
 
 raw_test_df=raw_test_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
-raw_test_df.head(5).T
+raw_df=raw_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
 
 
 # ### Find zip_average_income and rent cooleration
 
-# In[32]:
+# In[15]:
 
 
 continuous_features.append('zip_average_income')
 
-# In[34]:
+
+# In[16]:
 
 
 continuous_df = raw_df[['zip_average_income','rent']]
@@ -222,19 +190,13 @@ continuous_df.corr()['rent'][:-1]
 
 # **The correlation between zip_average_income and rent is 0.403558, it is good enough to consider as a important feature that might impact the rent**
 
-# In[ ]:
-
-
-
-
-
 # # Data Cleaning
 
 # ## Cleaning Training dataset
 # ### Handling missing data
 # In order to handle missing data in this dataset, we frist find and count all the null values.
 
-# In[10]:
+# In[17]:
 
 
 raw_df.isna().sum()
@@ -255,11 +217,10 @@ raw_df.isna().sum()
 # 
 # Then, we will be dropping the rows which we don't have values for year_built, min_to_subway, neighborhood, and floornumber.
 
-# In[11]:
+# In[18]:
 
 
 # We will call the new df md_df
-
 md_df = raw_df.loc[
     raw_df.year_built.notnull() &
     raw_df.min_to_subway.notnull() & 
@@ -282,24 +243,24 @@ print("original shape of dataset:",raw_df.shape)
 print("shape of dataset after handling missing data:",md_df.shape)
 
 
-# ## remove outliers
+# ## Remove outliers
 
-# In[22]:
+# In[19]:
 
 
 for feature in continuous_features:
     md_df.plot.scatter(feature, 'rent')
 
 
-# In[78]:
+# In[20]:
 
 
 md_df.loc[md_df['size_sqft']==0].shape
 
 
-# ## drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models
+# **drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models**
 
-# In[12]:
+# In[21]:
 
 
 def remove_outliers(md_df, feature, low_value, high_value):
@@ -319,9 +280,9 @@ md_df = remove_outliers(md_df, 'floornumber', 0, 60)
 md_df['year_built'] = 2019 - md_df['year_built'].astype(int)
 
 
-# ## encode categorical feature and drop useless features
+# ### Encode categorical feature and drop useless features
 
-# In[18]:
+# In[22]:
 
 
 boroughs = np.array(md_df['borough'].unique())
@@ -332,22 +293,48 @@ for borough in boroughs:
 features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description',                     'neighborhood', 'unit', 'borough', 'line']
 
 md_df = md_df.drop(features_notNeed, axis=1)
-md_df.head(10).T
 
 
-# ## Cleaning dataset test1
-# ### Handle missing data
+# ### Use pair coorelation for continuous features
+
+# In[23]:
+
+
+continuous_df = md_df[continuous_features+['rent']]
+continuous_df.corr()['rent'][:-1]
+
+
+# ### Check coorelation for binary features
+
+# In[24]:
+
+
+md_df[binary_features+['rent']].corr()['rent'][:-1]
+coor_results= []
+
+for feature in binary_features:
+  df = raw_df.groupby([feature]).aggregate(['mean'])['rent']
+  df[feature]= df.index
+  coor_results.append(df.corr().iloc[0][1])
+coor_df = pd.DataFrame({'Coorelation': coor_results,'Feature':binary_features})
+coor_df
+
+
+# As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
+
+# ### Cleaning dataset test1
+#  Handle missing data
 # We frist find and count all the null values for test1 dataset
 
-# In[4]:
+# In[25]:
 
 
 raw_test_df.isna().sum()
 
 
-# we will be dropping the rows which we don't have values for year_built, min_to_subway, and floornumber, and then rename the dataframe as test_df
+# **we will be dropping the rows which we don't have values for year_built, min_to_subway, and floornumber, and then rename the dataframe as test_df**
 
-# In[5]:
+# In[26]:
 
 
 test_df = raw_test_df.loc[
@@ -361,16 +348,16 @@ print("original shape of dataset:",raw_test_df.shape)
 print("shape of dataset after handling missing data:",test_df.shape)
 
 
-# ## remove outliers of test df
+# ### Remove outliers of test dataset
 
-# In[8]:
+# In[27]:
 
 
 for feature in continuous_features:
     test_df.plot.scatter(feature, 'rent')
 
 
-# In[14]:
+# In[28]:
 
 
 test_df = remove_outliers(test_df, 'bathrooms', 0, 12)
@@ -383,9 +370,9 @@ test_df = remove_outliers(test_df, 'floornumber', 0, 60)
 test_df['year_built'] = 2019 - test_df['year_built'].astype(int)
 
 
-# ## encode categorical feature and drop useless features from test df
+# **Encode categorical feature and drop useless features from test df**
 
-# In[15]:
+# In[29]:
 
 
 boroughs = np.array(test_df['borough'].unique())
@@ -396,11 +383,4 @@ for borough in boroughs:
 features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description',                     'neighborhood', 'unit', 'borough', 'line']
 
 test_df = test_df.drop(features_notNeed, axis=1)
-test_df.head(10).T
-
-
-# In[ ]:
-
-
-
 
