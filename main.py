@@ -401,7 +401,7 @@ md_df = shuffle(md_df).reset_index(drop=True)
 test_df = shuffle(test_df).reset_index(drop=True)
 
 
-# In[31]:
+# In[42]:
 
 
 features = list(md_df.columns)
@@ -409,7 +409,7 @@ features.remove('rent')
 k_fold = KFold(n_splits=5)
 
 
-# In[32]:
+# In[43]:
 
 
 def get_cv_results(regressor):
@@ -426,7 +426,7 @@ def get_cv_results(regressor):
 
 # ## Random Forest
 
-# In[33]:
+# In[50]:
 
 
 rforest = RandomForestRegressor(
@@ -448,7 +448,7 @@ for feature,score in zip(features,rforest.feature_importances_):
 # ## Gradient Boosting Regression
 # For the gradient boosting regressor we will first set up the hyperparameter max_depth=5 to avoid overfitting, will adjust more hyperparameter as we move on to improve the model
 
-# In[37]:
+# In[51]:
 
 
 gbrdemo = GradientBoostingRegressor(
@@ -495,4 +495,25 @@ print("n_estimators: ",best_est['n_estimators'])
 print("max_depth: ", best_est['max_depth'])
 print("Learning Rate: ", best_est['learning_rate'])
 print("min_samples_leaf: ", best_est['min_samples_leaf'])
+
+
+# As we can see from the result above, we have found the suitable hyperparameters for our model, thus we can use them to check if a better result will be obtained.
+
+# In[52]:
+
+
+bettergbr1 = GradientBoostingRegressor(
+    n_estimators=100,
+    max_depth=6,
+    learning_rate=0.1,
+    min_samples_leaf=5
+)
+
+get_cv_results(bettergbr1)
+
+
+# In[ ]:
+
+
+
 
