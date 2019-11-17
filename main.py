@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[76]:
+# In[1]:
 
 
 import numpy as np
@@ -12,16 +12,16 @@ import statsmodels.api as sm
 import csv
 import warnings
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn import preprocessing
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, ShuffleSplit, GridSearchCV
 from sklearn.utils import shuffle
 from sklearn.metrics import mean_squared_error
 
-get_ipython().magic(u'matplotlib inline')
+get_ipython().run_line_magic('matplotlib', 'inline')
 
 
-# In[63]:
+# In[2]:
 
 
 raw_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_train.csv', index_col=0)
@@ -69,7 +69,7 @@ raw_df['rent'].hist(bins=100)
 # - unit: no relationship
 # 
 
-# In[5]:
+# In[7]:
 
 
 continuous_features =['bathrooms','bedrooms','size_sqft','floor_count','year_built','min_to_subway','floornumber' ]
@@ -83,7 +83,7 @@ binary_features = ['has_doorman', 'has_elevator', 'has_fireplace', 'has_dishwash
 #  - We will import the 2017 individual income Tax statistic dataset from IRS website(https://www.irs.gov/pub/irs-soi/17zpallagi.csv).
 #  - We will expend a new feature: **average_income** based on zipcode to our raw dataset 
 
-# In[6]:
+# In[8]:
 
 
 raw_income_data=pd.read_csv('https://www.irs.gov/pub/irs-soi/17zpallagi.csv', index_col=0)
@@ -111,7 +111,7 @@ raw_income_data.describe()
 
 # ### Clean the raw income data and rename feature
 
-# In[7]:
+# In[10]:
 
 
 raw_income_data = raw_income_data.loc[raw_income_data['STATE']=='NY']
@@ -129,7 +129,7 @@ raw_income_data = raw_income_data.loc[raw_income_data['zipcode']>0]
 # - Export to ny_income_2017.csv for storage
 # - For next time, no need to import the raw_income_dataset again
 
-# In[8]:
+# In[11]:
 
 
 average_income = pd.DataFrame({'addr_zip':[],'zip_average_income':[]})
@@ -160,7 +160,7 @@ print(list(set(raw_test_df['addr_zip']) - set(average_income['addr_zip'])))
 
 # **Insert a new row for zipcode income 11249 into the average_income dataframe**
 
-# In[57]:
+# In[13]:
 
 
 avg_income = (average_income.loc[(average_income['addr_zip']==11239)].iloc[0]['zip_average_income'] +
@@ -171,7 +171,7 @@ average_income=average_income.append(new_row,ignore_index=True)
 
 # ### Merge the raw train and test1 dataset with the income dataset by addr_zip
 
-# In[64]:
+# In[14]:
 
 
 raw_test_df=raw_test_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
@@ -180,13 +180,13 @@ raw_df=raw_df.reset_index().merge(average_income, how="left",on='addr_zip').set_
 
 # ### Find zip_average_income and rent cooleration
 
-# In[11]:
+# In[15]:
 
 
 continuous_features.append('zip_average_income')
 
 
-# In[12]:
+# In[16]:
 
 
 continuous_df = raw_df[['zip_average_income','rent']]
@@ -222,7 +222,7 @@ raw_df.isna().sum()
 # 
 # Then, we will be dropping the rows which we don't have values for year_built, min_to_subway, neighborhood, and floornumber.
 
-# In[65]:
+# In[18]:
 
 
 # We will call the new df md_df
@@ -233,15 +233,15 @@ md_df = raw_df.loc[
     raw_df.floornumber.notnull()
 ]
 
-# Reminder:
-# use mode to replace NAN value, compare both method when creating models
-# md_df = raw_df.loc[
-#     raw_df.year_built.notnull() &
-#     raw_df.min_to_subway.notnull() & 
-#     raw_df.neighborhood.notnull() & 
-# ]
+""" Reminder:
+use mode or mean to replace NAN value, compare both method when creating models
 
-# md_df['floornumber'].fillna(md_df['floornumber'].mode()[0], inplace=True)
+md_df['floornumber'].fillna(md_df['floornumber'].mode()[0], inplace=True)
+md_df['year_built'].fillna(md_df['year_built'].mode()[0], inplace=True)
+md_df['min_to_subway'].fillna(md_df['min_to_subway'].mean()[0], inplace=True)
+md_df['neighborhood'].fillna(method='ffill')
+
+"""
 
 
 print("original shape of dataset:",raw_df.shape)
@@ -265,7 +265,7 @@ md_df.loc[md_df['size_sqft']==0].shape
 
 # **drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models**
 
-# In[66]:
+# In[21]:
 
 
 def remove_outliers(md_df, feature, low_value, high_value):
@@ -287,7 +287,7 @@ md_df['year_built'] = 2019 - md_df['year_built'].astype(int)
 
 # ### Encode categorical feature and drop useless features
 
-# In[68]:
+# In[22]:
 
 
 boroughs = np.array(md_df['borough'].unique())
@@ -339,7 +339,7 @@ raw_test_df.isna().sum()
 
 # **we will be dropping the rows which we don't have values for year_built, min_to_subway, and floornumber, and then rename the dataframe as test_df**
 
-# In[70]:
+# In[26]:
 
 
 test_df = raw_test_df.loc[
@@ -362,7 +362,7 @@ for feature in continuous_features:
     test_df.plot.scatter(feature, 'rent')
 
 
-# In[71]:
+# In[28]:
 
 
 test_df = remove_outliers(test_df, 'bathrooms', 0, 12)
@@ -377,7 +377,7 @@ test_df['year_built'] = 2019 - test_df['year_built'].astype(int)
 
 # **Encode categorical feature and drop useless features from test df**
 
-# In[72]:
+# In[29]:
 
 
 boroughs = np.array(test_df['borough'].unique())
@@ -390,14 +390,18 @@ features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'ad
 test_df = test_df.drop(features_notNeed, axis=1)
 
 
-# In[73]:
+# # Modeling
+
+# We will be using cross validation to evaluate the performances of our all modles,and then deciding which should be the most suitable one, thus we will first create a function called get_cv_results to obtain the cv_performance.
+
+# In[30]:
 
 
 md_df = shuffle(md_df).reset_index(drop=True)
 test_df = shuffle(test_df).reset_index(drop=True)
 
 
-# In[94]:
+# In[31]:
 
 
 features = list(md_df.columns)
@@ -405,7 +409,7 @@ features.remove('rent')
 k_fold = KFold(n_splits=5)
 
 
-# In[107]:
+# In[32]:
 
 
 def get_cv_results(regressor):
@@ -420,7 +424,9 @@ def get_cv_results(regressor):
     return np.mean(results), np.std(results)
 
 
-# In[112]:
+# ## Random Forest
+
+# In[33]:
 
 
 rforest = RandomForestRegressor(
@@ -432,15 +438,61 @@ rforest = RandomForestRegressor(
 rforest.fit(md_df[features], md_df['rent'])
 
 
-# In[116]:
+# In[34]:
 
 
 for feature,score in zip(features,rforest.feature_importances_):
     print(feature, ' ', score)
 
 
-# In[ ]:
+# ## Gradient Boosting Regression
+# For the gradient boosting regressor we will first set up the hyperparameter max_depth=5 to avoid overfitting, will adjust more hyperparameter as we move on to improve the model
+
+# In[37]:
 
 
+gbrdemo = GradientBoostingRegressor(
+    max_depth=5,
+    n_estimators=100
+)
 
+get_cv_results(gbrdemo)
+
+
+# ### Tuning Hyperparameters
+# Now let's use GridSearchCV form sci-kit learn model_selection to tune the hyperparameters, and find the most suitable one for our Gradient Boosting Regression model.
+
+# In[38]:
+
+
+# Tuning the hyperparameters based on a cross-validation subset (cv)
+# cited link: link: https://shankarmsy.github.io/stories/gbrt-sklearn.html
+
+def GradientBooster():
+    
+    param_grid={'n_estimators':[100],
+            'learning_rate': [0.1, 0.05, 0.01],
+            'max_depth':[4, 5, 6],
+            'min_samples_leaf':[3, 5, 9],
+           }
+    
+    # choose cross validation generator and use ShuffleSplit which randomly shuffles and selects Train and CV sets
+    cv = ShuffleSplit(n_splits=5, test_size=.25, random_state=0)
+    
+    classifier = GridSearchCV(estimator = GradientBoostingRegressor(), param_grid=param_grid, n_jobs=4, cv=cv)
+    
+    classifier.fit(md_df[features], md_df['rent'])  
+    return classifier.best_params_
+
+
+# In[39]:
+
+
+best_est=GradientBooster()
+
+print("Best Estimator Parameters:")
+print("n_estimators: ",best_est['n_estimators'])
+print("max_depth: ", best_est['max_depth'])
+print("Learning Rate: ", best_est['learning_rate'])
+print("min_samples_leaf: ", best_est['min_samples_leaf'])
 
