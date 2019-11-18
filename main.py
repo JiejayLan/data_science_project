@@ -14,10 +14,13 @@ import warnings
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn import preprocessing
-from sklearn.model_selection import KFold, ShuffleSplit, GridSearchCV
+from sklearn.model_selection import KFold
 from sklearn.utils import shuffle
 from sklearn.metrics import mean_squared_error
-
+from sklearn.preprocessing import StandardScaler
+from keras import models, layers, optimizers, regularizers
+from sklearn.model_selection import train_test_split, ShuffleSplit, GridSearchCV
+from keras import regularizers
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 
@@ -26,6 +29,8 @@ get_ipython().run_line_magic('matplotlib', 'inline')
 
 raw_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_train.csv', index_col=0)
 raw_test_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_test1.csv', index_col=0)
+raw_test2_df = pd.read_csv('https://grantmlong.com/data/SE_rents2018_test2.csv', index_col=0)
+raw_df = raw_df.append(raw_test_df)
 raw_df.head(20)
 raw_df.columns
 
@@ -169,12 +174,12 @@ new_row = {'addr_zip':11249,'zip_average_income':avg_income}
 average_income=average_income.append(new_row,ignore_index=True)  
 
 
-# ### Merge the raw train and test1 dataset with the income dataset by addr_zip
+# ### Merge the raw train  dataset with the income dataset by addr_zip
 
 # In[14]:
 
 
-raw_test_df=raw_test_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
+raw_test2_df=raw_test_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
 raw_df=raw_df.reset_index().merge(average_income, how="left",on='addr_zip').set_index('rental_id')
 
 
@@ -193,11 +198,11 @@ continuous_df = raw_df[['zip_average_income','rent']]
 continuous_df.corr()['rent'][:-1]
 
 
-# **The correlation between zip_average_income and rent is 0.403558, it is good enough to consider as a important feature that might impact the rent**
+# **The correlation between zip_average_income and rent is 0.393228, it is good enough to consider as a important feature that might impact the rent**
 
 # # Data Cleaning
 
-# ## Cleaning Training dataset
+# 
 # ### Handling missing data
 # In order to handle missing data in this dataset, we frist find and count all the null values.
 
@@ -226,22 +231,24 @@ raw_df.isna().sum()
 
 
 # We will call the new df md_df
+# md_df = raw_df.loc[
+#     raw_df.year_built.notnull() &
+#     raw_df.min_to_subway.notnull() & 
+#     raw_df.neighborhood.notnull() & 
+#     raw_df.floornumber.notnull()
+# ]
+
+# Reminder:
+# use mode to replace NAN value, compare both method when creating models
 md_df = raw_df.loc[
     raw_df.year_built.notnull() &
     raw_df.min_to_subway.notnull() & 
-    raw_df.neighborhood.notnull() & 
-    raw_df.floornumber.notnull()
+    raw_df.neighborhood.notnull() 
 ]
 
-""" Reminder:
-use mode or mean to replace NAN value, compare both method when creating models
-
 md_df['floornumber'].fillna(md_df['floornumber'].mode()[0], inplace=True)
-md_df['year_built'].fillna(md_df['year_built'].mode()[0], inplace=True)
-md_df['min_to_subway'].fillna(md_df['min_to_subway'].mean()[0], inplace=True)
-md_df['neighborhood'].fillna(method='ffill')
+raw_test2_df['floornumber'].fillna(raw_test2_df['floornumber'].mode()[0], inplace=True)
 
-"""
 
 
 print("original shape of dataset:",raw_df.shape)
@@ -260,7 +267,7 @@ for feature in continuous_features:
 # In[20]:
 
 
-md_df.loc[md_df['size_sqft']==0].shape
+md_df[md_df['rent']>40000].count()
 
 
 # **drop size_sqrt = 0 for now, since there are 713 rows, might replace with mode when creating models**
@@ -276,6 +283,7 @@ def remove_outliers(md_df, feature, low_value, high_value):
     print(feature, ': ', md_df.shape)
     return md_df
 
+md_df = remove_outliers(md_df, 'rent', 0, 40000)
 md_df = remove_outliers(md_df, 'bathrooms', 0, 12)
 md_df = remove_outliers(md_df, 'size_sqft', 0, 10000)
 md_df = remove_outliers(md_df, 'year_built', 1700, 2019)
@@ -294,6 +302,7 @@ boroughs = np.array(md_df['borough'].unique())
 
 for borough in boroughs:
     md_df[borough] = md_df['borough'].apply(lambda x : int(x == borough))
+    raw_test2_df[borough] = raw_test2_df['borough'].apply(lambda x : int(x == borough))
 
 features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description',                     'neighborhood', 'unit', 'borough', 'line']
 
@@ -327,89 +336,24 @@ coor_df
 
 # As we can see in the correlation table, all binrary features highly affected the rents. When we build the models, we should include all binary features.
 
-# ### Cleaning dataset test1
-#  Handle missing data
-# We frist find and count all the null values for test1 dataset
+# # Build Models
+# We will be using cross validation to evaluate the performances of our all modles,and then deciding which should be the most suitable one, thus we will first create a function called get_cv_results to obtain the cv_performance.
 
 # In[25]:
 
 
-raw_test_df.isna().sum()
+md_df = shuffle(md_df).reset_index(drop=True)
 
-
-# **we will be dropping the rows which we don't have values for year_built, min_to_subway, and floornumber, and then rename the dataframe as test_df**
 
 # In[26]:
 
 
-test_df = raw_test_df.loc[
-    raw_test_df.year_built.notnull() &
-    raw_test_df.min_to_subway.notnull() & 
-    raw_test_df.neighborhood.notnull() & 
-    raw_test_df.floornumber.notnull()
-]
-
-print("original shape of dataset:",raw_test_df.shape)
-print("shape of dataset after handling missing data:",test_df.shape)
-
-
-# ### Remove outliers of test dataset
-
-# In[27]:
-
-
-for feature in continuous_features:
-    test_df.plot.scatter(feature, 'rent')
-
-
-# In[28]:
-
-
-test_df = remove_outliers(test_df, 'bathrooms', 0, 12)
-test_df = remove_outliers(test_df, 'bedrooms', 0, 12)
-test_df = remove_outliers(test_df, 'size_sqft', 0, 10000)
-test_df = remove_outliers(test_df, 'year_built', 1700, 2019)
-test_df = remove_outliers(test_df, 'min_to_subway', 0, 60)
-test_df = remove_outliers(test_df, 'floornumber', 0, 60)
-
-test_df['year_built'] = 2019 - test_df['year_built'].astype(int)
-
-
-# **Encode categorical feature and drop useless features from test df**
-
-# In[29]:
-
-
-boroughs = np.array(test_df['borough'].unique())
-
-for borough in boroughs:
-    test_df[borough] = test_df['borough'].apply(lambda x : int(x == borough))
-
-features_notNeed = ['addr_unit', 'building_id', 'created_at', 'addr_street', 'addr_city', 'addr_zip', 'bin', 'bbl', 'description',                     'neighborhood', 'unit', 'borough', 'line']
-
-test_df = test_df.drop(features_notNeed, axis=1)
-
-
-# # Modeling
-
-# We will be using cross validation to evaluate the performances of our all modles,and then deciding which should be the most suitable one, thus we will first create a function called get_cv_results to obtain the cv_performance.
-
-# In[30]:
-
-
-md_df = shuffle(md_df).reset_index(drop=True)
-test_df = shuffle(test_df).reset_index(drop=True)
-
-
-# In[42]:
-
-
 features = list(md_df.columns)
 features.remove('rent')
-k_fold = KFold(n_splits=5)
+k_fold = KFold(n_splits=10)
 
 
-# In[43]:
+# In[27]:
 
 
 def get_cv_results(regressor):
@@ -424,31 +368,71 @@ def get_cv_results(regressor):
     return np.mean(results), np.std(results)
 
 
-# ## Random Forest
+# ### Radnom Forest Model
 
-# In[50]:
+# In[28]:
 
 
 rforest = RandomForestRegressor(
-    #random_state=random_state, 
-    max_depth=5,
-    n_estimators=100
+    random_state=11, 
+    max_depth=10,
+    n_estimators=200
 )
 
-rforest.fit(md_df[features], md_df['rent'])
+
+# In[30]:
+
+
+get_cv_results(rforest)
+
+
+# In[31]:
+
+
+rforest.fit(md_df[features], md_df['rent'])  
+for feature,score in sorted(zip(features,rforest.feature_importances_), key=lambda x:x[1], reverse=True):
+    print(feature, ' ', score)
+
+
+# ### Multiple Regression
+
+# In[32]:
+
+
+import statsmodels.api as sm
+from sklearn.linear_model import LinearRegression
+
+
+# In[33]:
+
+
+mul_reg_features = features[:]
+x = md_df[features] 
+y = md_df['rent']
+est = sm.OLS(y, x).fit()
+est.summary()
 
 
 # In[34]:
 
 
-for feature,score in zip(features,rforest.feature_importances_):
-    print(feature, ' ', score)
+mul_reg_features.remove('has_garden')
+mul_reg_features.remove('year_built')
+mul_reg_features.remove('bedrooms')
+
+
+# In[35]:
+
+
+mul_reg = LinearRegression().fit(md_df[mul_reg_features], md_df['rent'])
+get_cv_results(mul_reg)
 
 
 # ## Gradient Boosting Regression
 # For the gradient boosting regressor we will first set up the hyperparameter max_depth=5 to avoid overfitting, will adjust more hyperparameter as we move on to improve the model
+# 
 
-# In[51]:
+# In[36]:
 
 
 gbrdemo = GradientBoostingRegressor(
@@ -462,7 +446,7 @@ get_cv_results(gbrdemo)
 # ### Tuning Hyperparameters
 # Now let's use GridSearchCV form sci-kit learn model_selection to tune the hyperparameters, and find the most suitable one for our Gradient Boosting Regression model.
 
-# In[38]:
+# In[37]:
 
 
 # Tuning the hyperparameters based on a cross-validation subset (cv)
@@ -485,9 +469,12 @@ def GradientBooster():
     return classifier.best_params_
 
 
-# In[39]:
+# In[47]:
 
 
+# Since this function takes too long to run, it will waste a lot of time during development,
+# so we will just record the result for further usage. -----Runmin 11/18/19
+"""
 best_est=GradientBooster()
 
 print("Best Estimator Parameters:")
@@ -495,22 +482,84 @@ print("n_estimators: ",best_est['n_estimators'])
 print("max_depth: ", best_est['max_depth'])
 print("Learning Rate: ", best_est['learning_rate'])
 print("min_samples_leaf: ", best_est['min_samples_leaf'])
+"""
+print("Since this function takes too long to run, it will waste a lot of time during development,      \nso we will just record the result for further usage:")
+print("\nBest Estimator Parameters:")
+print("n_estimators: ",100)
+print("max_depth: ", 6)
+print("Learning Rate: ", 0.1)
+print("min_samples_leaf: ", 3)
 
 
 # As we can see from the result above, we have found the suitable hyperparameters for our model, thus we can use them to check if a better result will be obtained.
+# 
 
-# In[52]:
+# In[42]:
 
 
 bettergbr1 = GradientBoostingRegressor(
     n_estimators=100,
     max_depth=6,
     learning_rate=0.1,
-    min_samples_leaf=5
+    min_samples_leaf=3
 )
 
 get_cv_results(bettergbr1)
 
+
+# We do see some improvements on the mean squared error after we adjusted the hyperparameter a bit
+
+# ### Neural Network
+
+# In[49]:
+
+
+scaler = StandardScaler()
+X = scaler.fit_transform(md_df[features])
+Y = md_df['rent'].values.reshape(-1,1)
+
+train_x, test_x, train_y, test_y = train_test_split(X, Y, test_size=0.2, random_state=42)
+
+
+# In[56]:
+
+
+net = models.Sequential()
+net.add(layers.Dense(64, input_dim=train_x.shape[1], kernel_regularizer=regularizers.l1(0.1), activation='relu'))
+net.add(layers.Dropout(0.1))
+
+net.add(layers.Dense(64, kernel_regularizer=regularizers.l1(0.1), activation='relu'))
+net.add(layers.Dropout(0.1))
+
+net.add(layers.Dense(128, kernel_regularizer=regularizers.l1(0.1), activation='relu'))
+net.add(layers.Dropout(0.1))
+
+net.add(layers.Dense(256, kernel_regularizer=regularizers.l1(0.1), activation='relu'))
+net.add(layers.Dropout(0.1))
+
+net.add(layers.Dense(1, activation='linear'))
+
+net.compile(loss='mean_squared_error',
+            optimizer='adam',
+            metrics=['mean_squared_error'])
+
+
+# In[58]:
+
+
+net.fit(train_x, train_y, epochs=150, batch_size=64, validation_split = 0.1)
+
+
+# In[59]:
+
+
+mean_squared_error(test_y, net.predict(test_x))
+
+
+# **Although the DL Neural Network seems to provide a better result on mean squared errors but it is really unstable** 
+# 
+# we have ran few test run on it, and each time it gives different results range from 853411.6171418771 to around 1,300,000.
+# Therefore, we might still choose Gradient Boosting Regression as the most suitable model, since it provides a overall better result.
 
 # In[ ]:
 
