@@ -13,6 +13,8 @@ import csv
 import warnings
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.tree import DecisionTreeClassifier 
+from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
 from sklearn.model_selection import KFold
 from sklearn.utils import shuffle
@@ -508,6 +510,73 @@ get_cv_results(bettergbr1)
 
 
 # We do see some improvements on the mean squared error after we adjusted the hyperparameter a bit
+
+"""
+##  Regression Tree Model
+From definition, decision trees where the target variable can take continuous values (typically real numbers) are called regression trees.
+Thus, in our case when we do the regression tree model, we actually use the decision tree classifer."""
+
+#Train the regression tree model using default paramater
+
+regtreemo = DecisionTreeRegressor(
+    random_state=1, 
+    max_depth=None,
+    min_samples_leaf=1,
+    max_features=None,
+    max_leaf_nodes=None )
+
+regtreemo.fit(md_df[features], md_df['rent'])
+
+get_cv_results(regtreemo)
+
+#Train the regression tree model using Hyperparameters that we found, so that we can compare the results among different models better.
+
+newregtreemo = DecisionTreeRegressor(
+    random_state=1, 
+    max_depth=6,
+    min_samples_leaf=3 )
+
+newregtreemo.fit(md_df[features], md_df['rent'])
+
+get_cv_results(newregtreemo)
+
+#As we can see, the regression tree model that uses the Hyperparameters does have better result.
+#But Gradient Boosting Regression still has the best result.
+
+for feature,score in zip(features,newregtreemo.feature_importances_):
+    print(feature, ' ', score)
+
+### Learning Curve
+#We can use the Learning Curves methods provided in lecture 8
+
+hp_values = range(1,50, 2)
+all_mu = []
+all_sigma = []
+
+for m in hp_values:
+
+    dtree=DecisionTreeClassifier(
+        criterion='entropy', 
+        random_state=1, 
+        max_depth=m,
+        min_samples_leaf=m,
+    )
+
+    mu, sigma = get_cv_results(dtree)
+    all_mu.append(mu)
+    all_sigma.append(sigma)
+    
+    print(m, mu, sigma)
+
+plt.figure(figsize=(14, 5))
+plt.plot(hp_values, all_mu)
+plt.ylabel('Cross Validation Accuracy')
+plt.xlabel('Max Depth')
+
+plt.figure(figsize=(14, 5))
+plt.plot(hp_values, all_sigma)
+plt.ylabel('Cross Validation Std Dev.')
+plt.xlabel('Max Depth')
 
 # ### Neural Network
 
