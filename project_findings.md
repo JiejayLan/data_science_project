@@ -17,7 +17,7 @@ area that has a higher average income tend to have a higher rental price, and th
 
 The other factor is the unemployment rate, people tend to stay in the areas that have more working opportunities, therefore we can assume that the areas with high unemployment rate are more likely to have lower rent. We found that the correlation between zip_ unemployment _rate and rent is -0.167267 which clearly shows that the unemployment rate and rent has a negative correlation, which indicates that area with higher unemployment rate tend to have a lower rent, but the relationship is not that significant comparing to the average income.
 
-We also tried several other dataset including the Population dataset from NYC OpenData, housing sale price dataset from kaggle and median estimated rental values dataset from Zillow since population of the neighborhood, housing prices and median rental price of the zipcode could possibly affect our the estimated rental. However, not all of them are improving our performance, so we decided to leave only the xxx.
+We also added several other dataset including the Population dataset from NYC OpenData, housing sale price dataset from kaggle and median estimated rental values dataset from Zillow since population of the neighborhood, housing prices and median rental price of the zipcode could possibly affect our the estimated rental. 
 
 ## Data Exploration.
 
