@@ -54,3 +54,11 @@ For visualization that demonstrates the predictive power of our model, it is an 
 ## Conclusion.
 
 For our accurate rent predition model, we can use it in multiple way. First, for online real estate platform, they can use to detect any fake price posting, either too high or too low. For exmaple, if a leaser post a incredible low price, the platform can detect at the time he posts instead of identify it manually. Secondly, as a customer, we can use this as a tool for reference price, which can prevent from price inflaction or price cheating. Third, right now we only use New York area dataset to train our model, in the future if we use other area' s rent price dataset to train the model, we can also provide rent predition for other cities. 
+
+If we can add more additional model features.
+- Some features related to bin and bbl, like tax and personal income based on bin and bbl
+- Historical price for the apartment
+- Average price change in the area compared to last year
+- Decoration design
+
+We would perfer to have more data at this point, because we have have 10000 entities for the traning set, which is far from enough. If we have more data, we can increase the accuracy of our model. Of course features are very imforportant, but we have to mare sure we have enough data first.
