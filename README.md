@@ -8,14 +8,6 @@
 - Bida Chen
 - Runmin Lin
 
-#### Member Names:
-- Jie Lan 
-- Hongjie Huang
-- Bida Chen
-- Runmin Lin
-
-# Project Findings for Questions and Tasks section
-
 ## Data Usage.
 
 Our team researched about various topics for factors that affect the rental price beside the ones that 
